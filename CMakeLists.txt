@@ -43,7 +43,7 @@
 #
 ################################################################################
 
-cmake_minimum_required (VERSION 3.0.0)
+cmake_minimum_required (VERSION 3.5.0)
 project (CHAI3D)
 
 # Version info
@@ -53,6 +53,9 @@ STRING (REGEX REPLACE ".*MINOR=([0-9]+).*" "\\1" MINOR "${VERSION_FILE}")
 STRING (REGEX REPLACE ".*PATCH=([0-9]+).*" "\\1" PATCH "${VERSION_FILE}")
 STRING (REGEX REPLACE ".*PRERELEASE=([0-9]+).*" "\\1" PRERELEASE "${VERSION_FILE}")
 set (PROJECT_VERSION ${MAJOR}.${MINOR}.${PATCH}${PRERELEASE})
+
+set(CMAKE_CXX_STANDARD 20)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 # Platform detection
 if (${CMAKE_SYSTEM_NAME} MATCHES Windows)

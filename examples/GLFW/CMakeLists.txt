@@ -53,3 +53,18 @@ foreach (example 01-mydevice 02-multi-devices 03-analytics 04-shapes 05-fonts 06
     endif ()
 
 endforeach ()
+
+set (IMGUI_INCLUDE_DIRS "${PROJECT_SOURCE_DIR}/extras/imgui-docking")
+set (IMGUI_SRC
+  "${IMGUI_INCLUDE_DIRS}/imgui.cpp"
+  "${IMGUI_INCLUDE_DIRS}/imgui_demo.cpp"
+  "${IMGUI_INCLUDE_DIRS}/imgui_draw.cpp"
+  "${IMGUI_INCLUDE_DIRS}/imgui_tables.cpp"
+  "${IMGUI_INCLUDE_DIRS}/imgui_widgets.cpp"
+  "${IMGUI_INCLUDE_DIRS}/backends/imgui_impl_opengl3.cpp"
+  "${IMGUI_INCLUDE_DIRS}/backends/imgui_impl_glfw.cpp"
+)
+
+add_executable (32-modelling 32-modelling/32-modelling.cpp ${IMGUI_SRC})
+target_link_libraries (32-modelling ${CHAI3D_LIBRARIES} ${GLFW_LIBRARIES})
+target_include_directories (32-modelling PRIVATE ${IMGUI_INCLUDE_DIRS})
