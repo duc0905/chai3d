@@ -112,14 +112,6 @@ cGenericHapticDevicePtr hapticDevice;
 // a virtual tool representing the haptic device in the scene
 cToolCursor *tool;
 
-// a virtual mesh like object
-// cMultiMesh *objectMM;
-// cMesh *object;
-// For deformation calculation
-MyStuff::PriMoMesh primoMesh;
-
-// Only for rendering purposes
-chai3d::cMesh myMesh;
 
 // a colored background
 cBackground *background;
@@ -165,9 +157,98 @@ int swapInterval = 1;
 string resourceRoot;
 
 // My stuff
-std::set<int> selectedTrianglesIndices, hoveredTrianglesIndices;
+
+// a virtual mesh like object
+// cMultiMesh *objectMM;
+// cMesh *object;
+// For deformation calculation
+MyStuff::PriMoMesh primoMesh;
+
+// Only for rendering purposes
+chai3d::cMesh myMesh;
+
+int faceIdx = 0;
+bool doDeform = false;
+
+chai3d::cVector3d objectTranslation;
+chai3d::cVector3d objectRotation;
+
+std::set<unsigned int> selectedTrianglesIndices, hoveredTrianglesIndices;
 
 cColorf selectColor, unselectColor, hoverColor;
+
+// My temporary stuff
+// chai3d::cVector3d faceTranslation;
+// chai3d::cVector3d faceRotation;
+
+// My functions
+
+void MyImGuiControlPanel() {
+  // 1. Show the big demo window (Most of the sample code is in
+  // ImGui::ShowDemoWindow()! You can browse its code to learn more about Dear
+  // ImGui!).
+  // if (show_demo_window)
+  //   ImGui::ShowDemoWindow(&show_demo_window);
+
+  constexpr double tMin = -2.0f;
+  constexpr double tMax = 2.0f;
+  constexpr double rMin = -3.14f;
+  constexpr double rMax = 3.14f;
+
+  ImGui::Begin("Test window");
+
+  ImGui::SliderScalarN("Obj translation", ImGuiDataType_Double,
+                       &objectTranslation(0), 3, &tMin, &tMax, "%.3f");
+  ImGui::SliderScalarN("Obj rotation", ImGuiDataType_Double, &objectRotation(0),
+                       3, &rMin, &rMax, "%.3f");
+
+  ImGui::Checkbox("Deform?", &doDeform);
+
+  ImGui::SliderInt("Face index", &faceIdx, 0, myMesh.getNumTriangles() - 1);
+
+  unsigned int v0 = myMesh.m_triangles->getVertexIndex(faceIdx, 0);
+  unsigned int v1 = myMesh.m_triangles->getVertexIndex(faceIdx, 1);
+  unsigned int v2 = myMesh.m_triangles->getVertexIndex(faceIdx, 2);
+
+  ImGui::Text("Triangle: %d %d %d", v0, v1, v2);
+
+  ImGui::SliderScalarN("Face translation", ImGuiDataType_Double,
+                       &primoMesh.faces[faceIdx].translate(0), 3, &tMin, &tMax,
+                       "%.3f");
+  ImGui::SliderScalarN("Face rotation", ImGuiDataType_Double,
+                       &primoMesh.faces[faceIdx].rotate(0), 3, &rMin, &rMax,
+                       "%.3f");
+
+  ImGui::Checkbox("Constrain face", &primoMesh.faces[faceIdx].isConstrain);
+
+  ImGui::End();
+
+  ImGui::Begin("Obj inspection");
+
+  for (unsigned int i = 0; i < myMesh.m_vertices->getNumElements(); i++) {
+    auto pos = myMesh.m_vertices->getLocalPos(i);
+    ImGui::Text("[%d]: %.3f %.3f %.3f", i, pos(0), pos(1), pos(2));
+  }
+
+  ImGui::End();
+
+  ImGui::Begin("Another Primo inspection");
+
+  for (unsigned int i = 0; i < primoMesh.faces.size(); i++) {
+    std::array<unsigned int, 3> vids;
+    unsigned int x = 0;
+
+    for (auto eid : MyStuff::edges(primoMesh, i)) {
+      vids[x++] = primoMesh.edges[eid].source;
+    }
+
+    ImGui::Text("[%d]: %d %d %d", i, vids[0], vids[1], vids[2]);
+  }
+
+  // for (unsigned int i = 0; i < primoMesh.verts.size());
+
+  ImGui::End();
+}
 
 //------------------------------------------------------------------------------
 // DECLARED FUNCTIONS
@@ -369,7 +450,7 @@ int main(int argc, char *argv[]) {
   world->addChild(camera);
 
   // position and orient the camera
-  camera->set(cVector3d(3.0, 0.0, 0.0),  // camera position (eye)
+  camera->set(cVector3d(4.0, 0.0, 0.0),  // camera position (eye)
               cVector3d(0.0, 0.0, 0.0),  // lookat position (target)
               cVector3d(0.0, 0.0, 1.0)); // direction of the (up) vector
 
@@ -483,7 +564,7 @@ int main(int argc, char *argv[]) {
   objectMM->m_name = "My multi mesh";
 
   bool loadSuccess = objectMM->loadFromFile(
-      RESOURCE_PATH("../resources/models/bunny/bunny-res3.3ds"));
+      RESOURCE_PATH("../resources/models/cube/cube.obj"));
 
   if (!loadSuccess) {
     printf("Error - 3D Model failed to load correctly.\n");
@@ -509,18 +590,18 @@ int main(int argc, char *argv[]) {
 
   // NOTE: Just checking to make sure converting back from PriMo representation
   // works
-  MyStuff::Primo2Chai3DMesh(primoMesh, myMesh);
+  // MyStuff::Primo2Chai3DMesh(primoMesh, myMesh);
 
   myMesh.setVertexColor({0.1f, 0.7f, 0.2f});
 
   // set the position of the object at the center of the world
   myMesh.setLocalPos(0.0, 0.0, 0.0);
 
-  myMesh.rotateAboutLocalAxisRad({1.0, 0.0, 0.0}, 3.14 / 2.0);
-  myMesh.rotateAboutLocalAxisRad({0.0, 1.0, 0.0}, 3.14 / 2.0);
+  // myMesh.rotateAboutLocalAxisRad({1.0, 0.0, 0.0}, 3.14 / 4.0);
+  // myMesh.rotateAboutLocalAxisRad({0.0, 1.0, 0.0}, 3.14 / 4.0);
 
   // Since we want to see our polygons from both sides, we disable culling.
-  myMesh.setUseCulling(true);
+  myMesh.setUseCulling(false);
 
   // we indicate that we ware rendering triangles by using specific colors for
   // each of them (see above)
@@ -605,6 +686,20 @@ int main(int argc, char *argv[]) {
 
   // main graphic loop
   while (!glfwWindowShouldClose(window)) {
+    // primoMesh.faces[faceIdx].translate = faceTranslation;
+    // primoMesh.faces[faceIdx].rotate = faceRotation;
+
+    if (doDeform)
+      MyStuff::optimizePriMo(primoMesh);
+
+    MyStuff::Primo2Chai3DMesh(primoMesh, myMesh);
+
+    chai3d::cMatrix3d rotMat = chai3d::cRotEulerRad(
+        objectRotation(0), objectRotation(1), objectRotation(2),
+        chai3d::cEulerOrder::C_EULER_ORDER_ZXY);
+
+    myMesh.setLocalPos(objectTranslation);
+    myMesh.setLocalRot(rotMat);
 
     // render graphics
     renderGraphics();
@@ -840,6 +935,18 @@ void renderGraphics(void) {
       triangles->m_vertices->setColor(index1, hoverColor);
       triangles->m_vertices->setColor(index2, hoverColor);
     }
+
+    if (primoMesh.faces[i].isConstrain) {
+      triangles->m_vertices->setColor(index0, selectColor);
+      triangles->m_vertices->setColor(index1, selectColor);
+      triangles->m_vertices->setColor(index2, selectColor);
+    }
+
+    if (i == faceIdx) {
+      triangles->m_vertices->setColor(index0, hoverColor);
+      triangles->m_vertices->setColor(index1, hoverColor);
+      triangles->m_vertices->setColor(index2, hoverColor);
+    }
   }
 
   // update shadow maps (if any)
@@ -855,15 +962,7 @@ void renderGraphics(void) {
 
   // ImGui::DockSpaceOverViewport(0, nullptr, flags);
 
-  // 1. Show the big demo window (Most of the sample code is in
-  // ImGui::ShowDemoWindow()! You can browse its code to learn more about Dear
-  // ImGui!).
-  if (show_demo_window)
-    ImGui::ShowDemoWindow(&show_demo_window);
-
-  ImGui::Begin("Test window");
-
-  ImGui::End();
+  MyImGuiControlPanel();
 
   // Rendering
   ImGui::Render();
@@ -907,15 +1006,15 @@ void renderHaptics(void) {
   simulationFinished = false;
 
   // read user-switch status (button 0)
-  static bool lastframe_btn0 = false;
-  static bool lastframe_btn1 = false;
-  static bool lastframe_btn2 = false;
-  static bool lastframe_btn3 = false;
-  bool button0, button1, button2, button3;
-  button0 = false;
-  button1 = false;
-  button2 = false;
-  button3 = false;
+  // static bool lastframe_btn0 = false;
+  // static bool lastframe_btn1 = false;
+  // static bool lastframe_btn2 = false;
+  // static bool lastframe_btn3 = false;
+  // bool button0, button1, button2, button3;
+  // button0 = false;
+  // button1 = false;
+  // button2 = false;
+  // button3 = false;
 
   // Select triangles
   auto touchPoint = tool->getHapticPoint(0);
@@ -959,132 +1058,133 @@ void renderHaptics(void) {
     // MY CODE
     /////////////////////////////////////////////////////////////////////
 
-    hapticDevice->getUserSwitch(0, button0);
-    hapticDevice->getUserSwitch(1, button1);
-    hapticDevice->getUserSwitch(2, button2);
-    hapticDevice->getUserSwitch(3, button3);
+    // hapticDevice->getUserSwitch(0, button0);
+    // hapticDevice->getUserSwitch(1, button1);
+    // hapticDevice->getUserSwitch(2, button2);
+    // hapticDevice->getUserSwitch(3, button3);
+    //
+    // bool btn0_repeat = button0 && lastframe_btn0 == button0;
+    // bool btn1_repeat = button1 && lastframe_btn1 == button1;
+    // bool btn2_repeat = button2 && lastframe_btn2 == button2;
+    // bool btn3_repeat = button3 && lastframe_btn3 == button3;
 
-    bool btn0_repeat = button0 && lastframe_btn0 == button0;
-    bool btn1_repeat = button1 && lastframe_btn1 == button1;
-    bool btn2_repeat = button2 && lastframe_btn2 == button2;
-    bool btn3_repeat = button3 && lastframe_btn3 == button3;
-
-    hoveredTrianglesIndices.clear();
+    // hoveredTrianglesIndices.clear();
 
     // Highlight hovering triangles
-    if (touchPoint->isInContact(&myMesh)) {
-      auto nEvents = touchPoint->getNumCollisionEvents();
+    // if (touchPoint->isInContact(&myMesh)) {
+    //   auto nEvents = touchPoint->getNumCollisionEvents();
+    //
+    //   for (unsigned int i = 0; i < nEvents; i++) {
+    //     auto event = touchPoint->getCollisionEvent(i);
+    //
+    //     if (event->m_object && event->m_triangles && event->m_index > -1) {
+    //       auto index = event->m_index;
+    //
+    //       hoveredTrianglesIndices.insert(index);
+    //     }
+    //   }
+    // }
 
-      for (unsigned int i = 0; i < nEvents; i++) {
-        auto event = touchPoint->getCollisionEvent(i);
-
-        if (event->m_object && event->m_triangles && event->m_index > -1) {
-          auto index = event->m_index;
-
-          hoveredTrianglesIndices.insert(index);
-        }
-      }
-    }
-
-    static cVector3d lastCursorPos(0.0f, 0.0f, 0.0f);
+    // static cVector3d lastCursorPos = tool->getDeviceGlobalPos();
 
     // Select and & select triangles
-    if (button0 && !btn0_repeat) {
-      // Pressing the button, so (un)select hovering triangle
-
-      if (touchPoint->isInContact(&myMesh)) {
-        auto nEvents = touchPoint->getNumCollisionEvents();
-
-        for (unsigned int i = 0; i < nEvents; i++) {
-          auto event = touchPoint->getCollisionEvent(i);
-
-          if (event->m_object && event->m_index > -1) {
-            auto index = event->m_index;
-
-            if (selectedTrianglesIndices.find(event->m_index) ==
-                selectedTrianglesIndices.end()) {
-              // Triangle not selected, so select it.
-              std::cout << "Selecting triangle #" << index << std::endl;
-              selectedTrianglesIndices.insert(index);
-            } else {
-              // Triangle selected, so unselect it.
-              std::cout << "Unselecting triangle #" << index << std::endl;
-              selectedTrianglesIndices.erase(index);
-            }
-          }
-        }
-      } else {
-        selectedTrianglesIndices.clear();
-      }
-    } else if (button1) { // Move selected triangles
-      if (btn1_repeat) {
-        // Move the triangles
-        cVector3d cursorPos = tool->getDeviceGlobalPos();
-        cVector3d dp = cursorPos - lastCursorPos;
-        auto rotMat = myMesh.getGlobalRot();
-        rotMat.invert();
-
-        // Move the triangles
-        for (auto index : selectedTrianglesIndices) {
-          auto &triangles = myMesh.m_triangles;
-
-          unsigned int index0 = triangles->getVertexIndex0(index);
-          unsigned int index1 = triangles->getVertexIndex1(index);
-          unsigned int index2 = triangles->getVertexIndex2(index);
-
-          auto pos0 = myMesh.m_vertices->getLocalPos(index0);
-          auto pos1 = myMesh.m_vertices->getLocalPos(index1);
-          auto pos2 = myMesh.m_vertices->getLocalPos(index2);
-
-          triangles->m_vertices->setLocalPos(index0, pos0 + rotMat * dp);
-          triangles->m_vertices->setLocalPos(index1, pos1 + rotMat * dp);
-          triangles->m_vertices->setLocalPos(index2, pos2 + rotMat * dp);
-        }
-      }
-
-      lastCursorPos = tool->getDeviceGlobalPos();
-    } else if (button2) {
-      if (btn2_repeat) {
-        // Move the triangles
-        cVector3d cursorPos = tool->getDeviceGlobalPos();
-        cVector3d dp = cursorPos - lastCursorPos;
-
-        cVector3d rotAngle = dp * 200.0f;
-
-        cMatrix3d rotMat =
-            cRotEulerDeg(rotAngle.get(1), rotAngle.get(2), rotAngle.get(0),
-                         chai3d::C_EULER_ORDER_ZYX);
-
-        // Move the triangles
-        for (auto index : selectedTrianglesIndices) {
-          auto &triangles = myMesh.m_triangles;
-          unsigned int index0 = triangles->getVertexIndex0(index);
-          unsigned int index1 = triangles->getVertexIndex1(index);
-          unsigned int index2 = triangles->getVertexIndex2(index);
-
-          auto pos0 = myMesh.m_vertices->getLocalPos(index0);
-          auto pos1 = myMesh.m_vertices->getLocalPos(index1);
-          auto pos2 = myMesh.m_vertices->getLocalPos(index2);
-          auto p = (pos0 + pos1 + pos2) / 3.0;
-
-          triangles->m_vertices->setLocalPos(index0, rotMat * (pos0 - p) + p);
-          triangles->m_vertices->setLocalPos(index1, rotMat * (pos1 - p) + p);
-          triangles->m_vertices->setLocalPos(index2, rotMat * (pos2 - p) + p);
-        }
-      }
-
-      lastCursorPos = tool->getDeviceGlobalPos();
-    } else if (button3) {
-      if (btn3_repeat) {
-        // Move the triangles
-        cVector3d cursorPos = tool->getDeviceGlobalPos();
-        cVector3d dp = cursorPos - lastCursorPos;
-
-        myMesh.translate(dp);
-      }
-
-      lastCursorPos = tool->getDeviceGlobalPos();
-    }
+    // if (button0 && !btn0_repeat) {
+    //   // Pressing the button, so (un)select hovering triangle
+    //
+    //   if (touchPoint->isInContact(&myMesh)) {
+    //     auto nEvents = touchPoint->getNumCollisionEvents();
+    //
+    //     for (unsigned int i = 0; i < nEvents; i++) {
+    //       auto event = touchPoint->getCollisionEvent(i);
+    //
+    //       if (event->m_object && event->m_index > -1) {
+    //         auto index = event->m_index;
+    //
+    //         if (selectedTrianglesIndices.find(event->m_index) ==
+    //             selectedTrianglesIndices.end()) {
+    //           // Triangle not selected, so select it.
+    //           std::cout << "Selecting triangle #" << index << std::endl;
+    //           selectedTrianglesIndices.insert(index);
+    //         } else {
+    //           // Triangle selected, so unselect it.
+    //           std::cout << "Unselecting triangle #" << index << std::endl;
+    //           selectedTrianglesIndices.erase(index);
+    //         }
+    //       }
+    //     }
+    //   } else {
+    //     selectedTrianglesIndices.clear();
+    //   }
+    // } else if (button1) { // Move selected triangles
+    //   if (btn1_repeat) {
+    //     // Move the triangles
+    //     cVector3d cursorPos = tool->getDeviceGlobalPos();
+    //     cVector3d dp = cursorPos - lastCursorPos;
+    //     auto rotMat = myMesh.getGlobalRot();
+    //     rotMat.invert();
+    //
+    //     // Move the triangles
+    //     for (auto index : selectedTrianglesIndices) {
+    //       auto &triangles = myMesh.m_triangles;
+    //
+    //       unsigned int index0 = triangles->getVertexIndex0(index);
+    //       unsigned int index1 = triangles->getVertexIndex1(index);
+    //       unsigned int index2 = triangles->getVertexIndex2(index);
+    //
+    //       auto pos0 = myMesh.m_vertices->getLocalPos(index0);
+    //       auto pos1 = myMesh.m_vertices->getLocalPos(index1);
+    //       auto pos2 = myMesh.m_vertices->getLocalPos(index2);
+    //
+    //       triangles->m_vertices->setLocalPos(index0, pos0 + rotMat * dp);
+    //       triangles->m_vertices->setLocalPos(index1, pos1 + rotMat * dp);
+    //       triangles->m_vertices->setLocalPos(index2, pos2 + rotMat * dp);
+    //     }
+    //   }
+    //
+    //   lastCursorPos = tool->getDeviceGlobalPos();
+    // } else if (button2) {
+    //   if (btn2_repeat) {
+    //     // Move the triangles
+    //     cVector3d cursorPos = tool->getDeviceGlobalPos();
+    //     cVector3d dp = cursorPos - lastCursorPos;
+    //
+    //     cVector3d rotAngle = dp * 200.0f;
+    //
+    //     cMatrix3d rotMat =
+    //         cRotEulerDeg(rotAngle.get(1), rotAngle.get(2), rotAngle.get(0),
+    //                      chai3d::C_EULER_ORDER_ZYX);
+    //
+    //     // Move the triangles
+    //     for (auto index : selectedTrianglesIndices) {
+    //       auto &triangles = myMesh.m_triangles;
+    //       unsigned int index0 = triangles->getVertexIndex0(index);
+    //       unsigned int index1 = triangles->getVertexIndex1(index);
+    //       unsigned int index2 = triangles->getVertexIndex2(index);
+    //
+    //       auto pos0 = myMesh.m_vertices->getLocalPos(index0);
+    //       auto pos1 = myMesh.m_vertices->getLocalPos(index1);
+    //       auto pos2 = myMesh.m_vertices->getLocalPos(index2);
+    //       auto p = (pos0 + pos1 + pos2) / 3.0;
+    //
+    //       triangles->m_vertices->setLocalPos(index0, rotMat * (pos0 - p) +
+    //       p); triangles->m_vertices->setLocalPos(index1, rotMat * (pos1 - p)
+    //       + p); triangles->m_vertices->setLocalPos(index2, rotMat * (pos2 -
+    //       p) + p);
+    //     }
+    //   }
+    //
+    //   lastCursorPos = tool->getDeviceGlobalPos();
+    // } else if (button3) {
+    //   if (btn3_repeat) {
+    //     // Move the triangles
+    //     cVector3d cursorPos = tool->getDeviceGlobalPos();
+    //     cVector3d dp = cursorPos - lastCursorPos;
+    //
+    //     myMesh.translate(dp);
+    //   }
+    //
+    //   lastCursorPos = tool->getDeviceGlobalPos();
+    // }
 
     // Rotate selected triangles
 
@@ -1149,10 +1249,10 @@ void renderHaptics(void) {
     //                                    timeInterval * angVel.length());
     // }
 
-    lastframe_btn0 = button0;
-    lastframe_btn1 = button1;
-    lastframe_btn2 = button2;
-    lastframe_btn3 = button3;
+    // lastframe_btn0 = button0;
+    // lastframe_btn1 = button1;
+    // lastframe_btn2 = button2;
+    // lastframe_btn3 = button3;
   }
 
   // exit haptics thread

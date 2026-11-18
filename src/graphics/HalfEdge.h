@@ -17,13 +17,13 @@ struct HE_Vertex {
 };
 
 struct HE_Edge {
-  unsigned int source; // ptr to a Vertex
+  unsigned int source = 0; // ptr to a Vertex
 
-  unsigned int next; // ptr to an Edge
+  unsigned int next = 0; // ptr to an Edge
 
-  unsigned int pair; // ptr to an Edge
+  unsigned int pair = 0; // ptr to an Edge
 
-  unsigned int face; // ptr to a Face
+  unsigned int face = 0; // ptr to a Face
 };
 
 struct HE_Face {
@@ -124,7 +124,7 @@ typedef HE_Mesh<HE_Vertex, HE_Edge, PriMo_Face> PriMoMesh;
  */
 PriMoMesh fromHEMesh(BasicHEMesh &heMesh);
 
-chai3d::cMesh fromPriMoMesh(const PriMoMesh &primoMesh);
+// chai3d::cMesh fromPriMoMesh(const PriMoMesh &primoMesh);
 
 void Primo2Chai3DMesh(const PriMoMesh &primoMesh, chai3d::cMesh &c3Mesh);
 
